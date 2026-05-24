@@ -1,0 +1,9 @@
+Resultado da Atividade - Node.js e JavaScript
+
+Este arquivo será atualizado automaticamente quando você executar o projeto,
+preencher os salários no formulário e clicar em "Calcular maior salário".
+
+O sistema irá mostrar:
+- A lista de salários informados;
+- O maior salário;
+- Um botão para baixar o resultado em TXT.
