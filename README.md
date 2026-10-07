@@ -1,8 +1,8 @@
-# Atividade Node.js e JavaScript - Salários
+# 💰 Atividade Node.js e JavaScript - Salários
 
 Esta atividade foi desenvolvida com Node.js e Express.
 
-## Objetivo
+## 🎯 Objetivo
 
 Criar um programa que receba vários salários como dados de entrada e mostre:
 
@@ -10,14 +10,14 @@ Criar um programa que receba vários salários como dados de entrada e mostre:
 - A lista de salários;
 - O resultado em formato `.txt`.
 
-## Como abrir no VS Code
+## 💻 Como abrir no VS Code
 
 1. Extraia o arquivo ZIP.
 2. Abra o VS Code.
 3. Clique em `File > Open Folder`.
 4. Selecione a pasta `atividade-node-salarios`.
 
-## Como executar
+## 🚀 Como executar
 
 No terminal do VS Code, execute:
 
@@ -43,7 +43,7 @@ Depois abra no navegador:
 http://localhost:3000
 ```
 
-## Como usar
+## 📖 Como usar
 
 1. Digite vários salários no campo do formulário.
 2. Os salários podem ser separados por:
@@ -67,7 +67,7 @@ Exemplo:
    - a lista de salários;
    - um botão para baixar o resultado em TXT.
 
-## Arquivos principais
+## 📁 Arquivos principais
 
 - `index.js`: servidor Node.js com Express.
 - `verifica.js`: arquivo simples para testar se o servidor está ativo.
