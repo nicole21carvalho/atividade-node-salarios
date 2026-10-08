@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
+const { lerSalarios, formatarReais, montarRelatorio } = require('./salarios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,103 +11,90 @@ app.use(express.urlencoded({ extended: true }));
 // Arquivos estáticos: HTML, CSS e JavaScript do front-end
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rota principal
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// Escapa o texto antes de colocar no HTML, para que nada digitado vire código
+function escaparHtml(texto) {
+  return String(texto).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function pagina(titulo, conteudo) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${titulo}</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      ${conteudo}
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function paginaDeErro(mensagem) {
+  return pagina('Erro', `
+      <h1>Erro</h1>
+      <p>${mensagem}</p>
+      <div class="botoes"><a class="botao" href="/">Voltar</a></div>`);
+}
 
 // Rota que recebe os salários e calcula o maior salário
 app.post('/calcular', (req, res) => {
-  const entradaSalarios = req.body.salarios;
+  const entrada = req.body.salarios || '';
 
-  if (!entradaSalarios || entradaSalarios.trim() === '') {
-    return res.send(`
-      <h1>Erro</h1>
-      <p>Nenhum salário foi informado.</p>
-      <a href="/">Voltar</a>
-    `);
+  if (entrada.trim() === '') {
+    return res.status(400).send(paginaDeErro('Nenhum salário foi informado.'));
   }
 
-  // Aceita salários separados por vírgula, ponto e vírgula, espaço ou quebra de linha
-  const salarios = entradaSalarios
-    .split(/[\n,; ]+/)
-    .map(valor => valor.replace(',', '.'))
-    .map(valor => parseFloat(valor))
-    .filter(valor => !isNaN(valor) && valor >= 0);
+  const { validos, invalidos } = lerSalarios(entrada);
 
-  if (salarios.length === 0) {
-    return res.send(`
-      <h1>Erro</h1>
-      <p>Informe salários válidos.</p>
-      <a href="/">Voltar</a>
-    `);
+  if (validos.length === 0) {
+    return res.status(400).send(paginaDeErro('Informe salários válidos, como 1500 ou 1.500,50.'));
   }
 
-  const maiorSalario = Math.max(...salarios);
+  const maiorSalario = Math.max(...validos);
+  const listaHtml = validos.map((salario) => `<li>${formatarReais(salario)}</li>`).join('');
+  const avisoInvalidos = invalidos.length
+    ? `<p class="ajuda">Ignorados por não serem números: ${invalidos.map(escaparHtml).join(', ')}</p>`
+    : '';
 
-  const listaFormatada = salarios
-    .map((salario, index) => `${index + 1}. R$ ${salario.toFixed(2)}`)
-    .join('\n');
+  res.send(pagina('Resultado dos Salários', `
+      <h1>Resultado</h1>
 
-  const conteudoTxt = 
-`Resultado da Atividade - Node.js e JavaScript
+      <h2>Maior salário</h2>
+      <p class="maior-salario">${formatarReais(maiorSalario)}</p>
 
-Lista de salários:
-${listaFormatada}
+      <h2>Lista de salários</h2>
+      <ul class="lista-salarios">${listaHtml}</ul>
+      ${avisoInvalidos}
 
-Maior salário:
-R$ ${maiorSalario.toFixed(2)}
-`;
-
-  // Salva o resultado em um arquivo TXT
-  fs.writeFileSync(path.join(__dirname, 'resultado.txt'), conteudoTxt, 'utf8');
-
-  const listaHtml = salarios
-    .map(salario => `<li>R$ ${salario.toFixed(2)}</li>`)
-    .join('');
-
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Resultado dos Salários</title>
-      <link rel="stylesheet" href="/style.css">
-    </head>
-    <body>
-      <main class="container">
-        <section class="card">
-          <h1>Resultado</h1>
-
-          <h2>Maior salário</h2>
-          <p class="maior-salario">R$ ${maiorSalario.toFixed(2)}</p>
-
-          <h2>Lista de salários</h2>
-          <ul class="lista-salarios">
-            ${listaHtml}
-          </ul>
-
-          <div class="botoes">
-            <a class="botao" href="/download">Baixar resultado em TXT</a>
-            <a class="botao secundario" href="/">Voltar</a>
-          </div>
-        </section>
-      </main>
-    </body>
-    </html>
-  `);
+      <div class="botoes">
+        <form action="/download" method="POST">
+          <input type="hidden" name="salarios" value="${escaparHtml(validos.join('\n'))}">
+          <button class="botao" type="submit">Baixar resultado em TXT</button>
+        </form>
+        <a class="botao secundario" href="/">Voltar</a>
+      </div>`));
 });
 
-// Rota para baixar o TXT
-app.get('/download', (req, res) => {
-  const arquivo = path.join(__dirname, 'resultado.txt');
+// Gera o TXT na hora, com os salários desta pessoa. Antes o resultado ficava num
+// arquivo único no servidor, e quem baixasse podia receber o resultado de outra pessoa.
+app.post('/download', (req, res) => {
+  const { validos } = lerSalarios(req.body.salarios || '');
 
-  if (fs.existsSync(arquivo)) {
-    res.download(arquivo);
-  } else {
-    res.send('Nenhum resultado foi gerado ainda. Volte e calcule os salários primeiro.');
+  if (validos.length === 0) {
+    return res.status(400).send(paginaDeErro('Nenhum resultado para baixar. Volte e calcule os salários primeiro.'));
   }
+
+  res.attachment('resultado.txt');
+  res.type('text/plain; charset=utf-8');
+  res.send(montarRelatorio(validos));
 });
 
 // Iniciando o servidor
